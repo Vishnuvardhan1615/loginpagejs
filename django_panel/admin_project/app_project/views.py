@@ -130,15 +130,50 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django.contrib.auth import authenticate
+from django.shortcuts import render
+import os
+from django.conf import settings
+import random
+from .models import UserLogin
+
+
 
 @csrf_exempt
+def register_user(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            username = data.get('username')
+            password = data.get('password')
+            email = data.get('email')
+
+            if not username or not password or not email:
+                return JsonResponse({'status': 'error', 'message': 'Missing data'}, status=400)
+
+            # Create user (no duplicate check, for now)
+            UserLogin.objects.create(
+                name=username,
+                user_pass=password,
+                email_address=email
+            )
+
+            return JsonResponse({'status': 'success', 'message': 'User created'}, status=201)
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+    return JsonResponse({'message': 'Only POST allowed'}, status=405)
+
 def members(request):
     if request.method == 'POST':
         try:
             # data = json.loads(request.body)
             data = json.loads(request.body)
             username = data.get('username')
-            password = data.get('password')
+            password =data.get('password')
+            
+
+          
 
             if not username or not password:
                 return JsonResponse({'status': 'error', 'message': 'Username and password required'}, status=400)
@@ -153,6 +188,41 @@ def members(request):
             return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
 
     return JsonResponse({'message': 'Only POST requests allowed'}, status=405)
+
+
+
+
+
+
+
+def check_thumbnail_images(request):
+    base_dir = settings.MEDIA_ROOT
+    data_list = []
+
+    for root, dirs, files in os.walk(base_dir):
+        ids = []
+        for file in files:
+            if file.endswith('.json'):
+                json_path = os.path.join(root, file)
+                with open(json_path, 'r') as f:
+                    data = json.load(f)
+                    image_id = data.get('id')
+                    ids.append(str(image_id))
+        thumb_folder = os.path.join(root, 'thumbnail')
+        images = []
+        if os.path.isdir(thumb_folder):
+            for img_file in os.listdir(thumb_folder):
+                image_path = os.path.join(thumb_folder, img_file)
+                rel_path = os.path.relpath(image_path, settings.MEDIA_ROOT)
+                image_url = settings.MEDIA_URL + rel_path.replace("\\", "/")
+                images.append(image_url)
+        if ids or images:
+            data_list.append({'ids': ids, 'images': images, 'folder': root})
+
+    if len(data_list) > 4:
+        data_list = random.sample(data_list, 4)
+   
+    return JsonResponse({'all_data': data_list})
 
 
 
